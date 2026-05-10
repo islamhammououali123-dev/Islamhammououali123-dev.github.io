@@ -1,11 +1,9 @@
 -- badtrip.script
 -- Black MM2 UI with neon-bordered realistic buttons
--- Visual Goldy spawner (client-side visual only)
+-- Visual Goldy "inventory" spawner (client-side visual only)
 
 local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -13,12 +11,6 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 if PlayerGui:FindFirstChild("badtrip") then
     PlayerGui.badtrip:Destroy()
 end
-
-local SpawnedFolder = Workspace:FindFirstChild("badtrip_goldy")
-if SpawnedFolder then SpawnedFolder:Destroy() end
-SpawnedFolder = Instance.new("Folder")
-SpawnedFolder.Name = "badtrip_goldy"
-SpawnedFolder.Parent = Workspace
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "badtrip"
@@ -32,8 +24,8 @@ ScreenGui.Parent = PlayerGui
 ----------------------------------------------------------------
 local Main = Instance.new("Frame")
 Main.Name = "Main"
-Main.Size = UDim2.new(0, 220, 0, 290)
-Main.Position = UDim2.new(0.5, -110, 0.5, -145)
+Main.Size = UDim2.new(0, 230, 0, 360)
+Main.Position = UDim2.new(0.5, -115, 0.5, -180)
 Main.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 Main.BorderSizePixel = 0
 Main.Active = true
@@ -102,7 +94,6 @@ local function makeButton(opts)
     corner.CornerRadius = UDim.new(0, 5)
     corner.Parent = btn
 
-    -- inner gradient for "realistic" depth
     local grad = Instance.new("UIGradient")
     grad.Color = ColorSequence.new({
         ColorSequenceKeypoint.new(0, Color3.fromRGB(28, 28, 28)),
@@ -112,7 +103,6 @@ local function makeButton(opts)
     grad.Rotation = 90
     grad.Parent = btn
 
-    -- neon border
     local stroke = Instance.new("UIStroke")
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.Color = opts.NeonColor or Color3.fromRGB(255, 200, 40)
@@ -120,7 +110,6 @@ local function makeButton(opts)
     stroke.Transparency = 0.1
     stroke.Parent = btn
 
-    -- highlight line on top for realism
     local highlight = Instance.new("Frame")
     highlight.Size = UDim2.new(1, -6, 0, 1)
     highlight.Position = UDim2.new(0, 3, 0, 1)
@@ -129,7 +118,6 @@ local function makeButton(opts)
     highlight.BackgroundTransparency = 0.85
     highlight.Parent = btn
 
-    -- hover and click animations
     btn.MouseEnter:Connect(function()
         TweenService:Create(stroke, TweenInfo.new(0.15), {Transparency = 0, Thickness = 1.8}):Play()
         TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(22, 22, 22)}):Play()
@@ -149,7 +137,7 @@ local function makeButton(opts)
 end
 
 ----------------------------------------------------------------
--- Test button (red)
+-- Buttons
 ----------------------------------------------------------------
 local TestButton = makeButton({
     Parent = Main,
@@ -160,27 +148,21 @@ local TestButton = makeButton({
 })
 TestButton.TextColor3 = Color3.fromRGB(255, 200, 200)
 
-----------------------------------------------------------------
--- Spawn button (single goldy) - gold neon
-----------------------------------------------------------------
 local SpawnButton = makeButton({
     Parent = Main,
     Size = UDim2.new(1, -20, 0, 30),
     Position = UDim2.new(0, 10, 0, 74),
-    Text = "Spawn",
+    Text = "Spawn (1 Goldy in inv)",
     NeonColor = Color3.fromRGB(255, 200, 40)
 })
 
-----------------------------------------------------------------
--- Amount textbox
-----------------------------------------------------------------
 local AmountBox = Instance.new("TextBox")
 AmountBox.Size = UDim2.new(1, -20, 0, 28)
 AmountBox.Position = UDim2.new(0, 10, 0, 112)
 AmountBox.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 AmountBox.BorderSizePixel = 0
 AmountBox.Text = ""
-AmountBox.PlaceholderText = "amount (1 - 50)"
+AmountBox.PlaceholderText = "amount (1 - 99)"
 AmountBox.PlaceholderColor3 = Color3.fromRGB(110, 110, 110)
 AmountBox.TextColor3 = Color3.fromRGB(255, 220, 120)
 AmountBox.Font = Enum.Font.Gotham
@@ -198,9 +180,6 @@ BoxStroke.Thickness = 1.2
 BoxStroke.Transparency = 0.4
 BoxStroke.Parent = AmountBox
 
-----------------------------------------------------------------
--- Spawn All Goldy button
-----------------------------------------------------------------
 local SpawnAllButton = makeButton({
     Parent = Main,
     Size = UDim2.new(1, -20, 0, 30),
@@ -210,13 +189,66 @@ local SpawnAllButton = makeButton({
 })
 SpawnAllButton.TextColor3 = Color3.fromRGB(255, 230, 150)
 
+local ClearButton = makeButton({
+    Parent = Main,
+    Size = UDim2.new(1, -20, 0, 26),
+    Position = UDim2.new(0, 10, 0, 188),
+    Text = "Clear Fake Inventory",
+    NeonColor = Color3.fromRGB(120, 120, 120)
+})
+ClearButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+
 ----------------------------------------------------------------
--- Status label
+-- Fake inventory panel (always works, no MM2 hook needed)
+----------------------------------------------------------------
+local InvLabel = Instance.new("TextLabel")
+InvLabel.Size = UDim2.new(1, -20, 0, 14)
+InvLabel.Position = UDim2.new(0, 10, 0, 222)
+InvLabel.BackgroundTransparency = 1
+InvLabel.Text = "fake inventory:"
+InvLabel.TextColor3 = Color3.fromRGB(140, 140, 140)
+InvLabel.TextXAlignment = Enum.TextXAlignment.Left
+InvLabel.Font = Enum.Font.Gotham
+InvLabel.TextSize = 10
+InvLabel.Parent = Main
+
+local InvFrame = Instance.new("ScrollingFrame")
+InvFrame.Size = UDim2.new(1, -20, 0, 90)
+InvFrame.Position = UDim2.new(0, 10, 0, 240)
+InvFrame.BackgroundColor3 = Color3.fromRGB(6, 6, 6)
+InvFrame.BorderSizePixel = 0
+InvFrame.ScrollBarThickness = 3
+InvFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 200, 40)
+InvFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+InvFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+InvFrame.Parent = Main
+
+local InvCorner = Instance.new("UICorner")
+InvCorner.CornerRadius = UDim.new(0, 5)
+InvCorner.Parent = InvFrame
+
+local InvStroke = Instance.new("UIStroke")
+InvStroke.Color = Color3.fromRGB(40, 40, 40)
+InvStroke.Thickness = 1
+InvStroke.Parent = InvFrame
+
+local InvGrid = Instance.new("UIGridLayout")
+InvGrid.CellSize = UDim2.new(0, 40, 0, 40)
+InvGrid.CellPadding = UDim2.new(0, 4, 0, 4)
+InvGrid.SortOrder = Enum.SortOrder.LayoutOrder
+InvGrid.Parent = InvFrame
+
+local InvPadding = Instance.new("UIPadding")
+InvPadding.PaddingTop = UDim.new(0, 4)
+InvPadding.PaddingLeft = UDim.new(0, 4)
+InvPadding.Parent = InvFrame
+
+----------------------------------------------------------------
+-- Status
 ----------------------------------------------------------------
 local Status = Instance.new("TextLabel")
-Status.Name = "Status"
-Status.Size = UDim2.new(1, -20, 0, 30)
-Status.Position = UDim2.new(0, 10, 1, -38)
+Status.Size = UDim2.new(1, -20, 0, 16)
+Status.Position = UDim2.new(0, 10, 1, -22)
 Status.BackgroundTransparency = 1
 Status.Text = "ready"
 Status.TextColor3 = Color3.fromRGB(160, 160, 160)
@@ -231,106 +263,102 @@ local function setStatus(text, color)
 end
 
 ----------------------------------------------------------------
--- Visual Goldy spawner (CLIENT-SIDE VISUAL ONLY)
--- Builds a glowing gold knife model that floats near you.
--- This is purely visual on your screen and does not affect gameplay.
+-- Goldy slot builder
 ----------------------------------------------------------------
-local function buildGoldyVisual(originCFrame, index, total)
-    local model = Instance.new("Model")
-    model.Name = "VisualGoldy"
+local goldyCount = 0
 
-    -- handle
-    local handle = Instance.new("Part")
-    handle.Name = "Handle"
-    handle.Size = Vector3.new(0.4, 0.4, 1.6)
-    handle.Material = Enum.Material.Neon
-    handle.Color = Color3.fromRGB(120, 80, 0)
-    handle.CanCollide = false
-    handle.Anchored = true
-    handle.TopSurface = Enum.SurfaceType.Smooth
-    handle.BottomSurface = Enum.SurfaceType.Smooth
-    handle.Parent = model
+local function makeGoldySlot()
+    goldyCount = goldyCount + 1
 
-    -- blade
-    local blade = Instance.new("Part")
-    blade.Name = "Blade"
-    blade.Size = Vector3.new(0.25, 0.6, 2.2)
-    blade.Material = Enum.Material.Neon
-    blade.Color = Color3.fromRGB(255, 215, 60)
-    blade.CanCollide = false
-    blade.Anchored = true
-    blade.TopSurface = Enum.SurfaceType.Smooth
-    blade.BottomSurface = Enum.SurfaceType.Smooth
-    blade.Parent = model
+    local slot = Instance.new("Frame")
+    slot.Name = "GoldySlot_" .. goldyCount
+    slot.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+    slot.BorderSizePixel = 0
+    slot.LayoutOrder = goldyCount
+    slot.Parent = InvFrame
 
-    -- shape blade with wedge mesh look
-    local bladeMesh = Instance.new("SpecialMesh")
-    bladeMesh.MeshType = Enum.MeshType.Wedge
-    bladeMesh.Scale = Vector3.new(1, 1, 1.4)
-    bladeMesh.Parent = blade
+    local sc = Instance.new("UICorner")
+    sc.CornerRadius = UDim.new(0, 4)
+    sc.Parent = slot
 
-    -- glow
-    local light = Instance.new("PointLight")
-    light.Color = Color3.fromRGB(255, 220, 90)
-    light.Brightness = 2
-    light.Range = 8
-    light.Parent = blade
+    local ss = Instance.new("UIStroke")
+    ss.Color = Color3.fromRGB(255, 215, 60)
+    ss.Thickness = 1.2
+    ss.Transparency = 0.2
+    ss.Parent = slot
 
-    -- name tag
-    local bb = Instance.new("BillboardGui")
-    bb.Size = UDim2.new(0, 80, 0, 20)
-    bb.StudsOffset = Vector3.new(0, 1.5, 0)
-    bb.AlwaysOnTop = true
-    bb.Parent = handle
-    local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, 0, 1, 0)
-    lbl.BackgroundTransparency = 1
-    lbl.Text = "Goldy"
-    lbl.TextColor3 = Color3.fromRGB(255, 215, 60)
-    lbl.TextStrokeTransparency = 0.3
-    lbl.Font = Enum.Font.GothamBold
-    lbl.TextSize = 14
-    lbl.Parent = bb
+    -- gold gradient inside the slot
+    local sg = Instance.new("UIGradient")
+    sg.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 45, 0)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 12, 0))
+    })
+    sg.Rotation = 135
+    sg.Parent = slot
 
-    model.Parent = SpawnedFolder
+    -- "knife" icon drawn with two frames
+    local handle = Instance.new("Frame")
+    handle.Size = UDim2.new(0, 4, 0, 14)
+    handle.Position = UDim2.new(0.5, -2, 0.5, 4)
+    handle.BackgroundColor3 = Color3.fromRGB(120, 80, 0)
+    handle.BorderSizePixel = 0
+    handle.Parent = slot
+    local hc = Instance.new("UICorner")
+    hc.CornerRadius = UDim.new(0, 2)
+    hc.Parent = handle
 
-    -- arrange in a circle around origin
-    local angle = (index / math.max(total, 1)) * math.pi * 2
-    local radius = math.min(4 + total * 0.2, 12)
-    local offset = Vector3.new(math.cos(angle) * radius, 2, math.sin(angle) * radius)
-    local basePos = originCFrame.Position + offset
+    local blade = Instance.new("Frame")
+    blade.Size = UDim2.new(0, 6, 0, 16)
+    blade.Position = UDim2.new(0.5, -3, 0.5, -14)
+    blade.BackgroundColor3 = Color3.fromRGB(255, 220, 70)
+    blade.BorderSizePixel = 0
+    blade.Parent = slot
+    local bc = Instance.new("UICorner")
+    bc.CornerRadius = UDim.new(0, 1)
+    bc.Parent = blade
 
-    handle.CFrame = CFrame.new(basePos)
-    blade.CFrame = handle.CFrame * CFrame.new(0, 0, -1.3)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0, 10)
+    label.Position = UDim2.new(0, 0, 1, -11)
+    label.BackgroundTransparency = 1
+    label.Text = "Goldy"
+    label.TextColor3 = Color3.fromRGB(255, 220, 90)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 9
+    label.Parent = slot
 
-    -- floating + spinning animation
-    local startTime = tick() + index * 0.1
-    local conn
-    conn = RunService.Heartbeat:Connect(function()
-        if not model.Parent then conn:Disconnect() return end
-        local t = tick() - startTime
-        local bob = math.sin(t * 2) * 0.4
-        local spin = CFrame.Angles(0, t * 1.5, 0)
-        local newCF = CFrame.new(basePos + Vector3.new(0, bob, 0)) * spin
-        handle.CFrame = newCF
-        blade.CFrame = newCF * CFrame.new(0, 0, -1.3)
-    end)
-
-    return model
+    return slot
 end
 
-local function clearVisuals()
-    for _, c in ipairs(SpawnedFolder:GetChildren()) do
-        c:Destroy()
+local function clearInventory()
+    for _, c in ipairs(InvFrame:GetChildren()) do
+        if c:IsA("Frame") then c:Destroy() end
     end
+    goldyCount = 0
 end
 
-local function getOriginCFrame()
-    local char = LocalPlayer.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        return char.HumanoidRootPart.CFrame
+----------------------------------------------------------------
+-- Best-effort: also try to inject into MM2's real inventory UI
+-- (safe — fails silently if the GUI isn't found)
+----------------------------------------------------------------
+local function tryInjectIntoMM2Inventory()
+    for _, gui in ipairs(PlayerGui:GetDescendants()) do
+        if gui:IsA("ScrollingFrame") and tostring(gui.Parent.Name):lower():find("invent") then
+            -- found something that looks like an inventory; clone first child
+            local first = gui:FindFirstChildWhichIsA("Frame") or gui:FindFirstChildWhichIsA("TextButton")
+            if first then
+                local fake = first:Clone()
+                fake.Name = "FakeGoldy"
+                local nameLbl = fake:FindFirstChild("ItemName", true)
+                if nameLbl and nameLbl:FindFirstChild("Label") then
+                    nameLbl.Label.Text = "Goldy"
+                end
+                fake.Parent = gui
+                return true
+            end
+        end
     end
-    return CFrame.new(0, 5, 0)
+    return false
 end
 
 ----------------------------------------------------------------
@@ -342,20 +370,29 @@ TestButton.MouseButton1Click:Connect(function()
 end)
 
 SpawnButton.MouseButton1Click:Connect(function()
-    buildGoldyVisual(getOriginCFrame(), 1, 1)
-    setStatus("spawned 1 visual goldy", Color3.fromRGB(255, 215, 60))
+    makeGoldySlot()
+    local injected = tryInjectIntoMM2Inventory()
+    setStatus(injected and "added 1 Goldy (also in MM2 ui)" or "added 1 Goldy to fake inv",
+              Color3.fromRGB(255, 215, 60))
     task.delay(1.5, function() setStatus("ready") end)
 end)
 
 SpawnAllButton.MouseButton1Click:Connect(function()
-    local n = tonumber(AmountBox.Text)
-    if not n then n = 10 end
-    n = math.clamp(math.floor(n), 1, 50)
-    clearVisuals()
-    local origin = getOriginCFrame()
+    local n = tonumber(AmountBox.Text) or 10
+    n = math.clamp(math.floor(n), 1, 99)
+    local injectedCount = 0
     for i = 1, n do
-        buildGoldyVisual(origin, i, n)
+        makeGoldySlot()
+        if tryInjectIntoMM2Inventory() then injectedCount = injectedCount + 1 end
     end
-    setStatus("spawned " .. n .. " visual goldy", Color3.fromRGB(255, 215, 60))
+    setStatus("added " .. n .. " Goldy" ..
+              (injectedCount > 0 and (" (" .. injectedCount .. " in mm2 ui)") or ""),
+              Color3.fromRGB(255, 215, 60))
     task.delay(2, function() setStatus("ready") end)
+end)
+
+ClearButton.MouseButton1Click:Connect(function()
+    clearInventory()
+    setStatus("cleared", Color3.fromRGB(180, 180, 180))
+    task.delay(1, function() setStatus("ready") end)
 end)
