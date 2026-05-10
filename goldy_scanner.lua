@@ -1,9 +1,10 @@
 -- goldy_scanner.lua
--- Safe MM2 scanner. Black UI, one COPY button.
--- Yields between modules so Roblox does not freeze.
+-- Safe MM2 scanner. NO require() calls. Just walks live instances.
+-- Black UI, one COPY button.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
 if PlayerGui:FindFirstChild("badtrip_scan") then
@@ -92,122 +93,108 @@ status.TextWrapped = true
 status.Parent = frame
 
 ----------------------------------------------------------------
--- SAFE scan
+-- SAFE scan: NO require() at all. Just live instances.
 ----------------------------------------------------------------
+local running = false
 
--- modules whose names suggest server/networking/init code we should NOT require
-local skipPatterns = {
-    "server", "remote", "network", "init", "boot",
-    "load", "fire", "anim", "controller", "input", "cam",
-    "round", "match", "gamemode", "music", "sound",
-    "tween", "particle", "debug", "test"
-}
-
-local function shouldSkipModule(m)
-    local name = m.Name:lower()
-    for _, p in ipairs(skipPatterns) do
-        if name:find(p) then return true end
-    end
-    -- skip anything inside the local player or character
-    local lp = Players.LocalPlayer
-    if m:IsDescendantOf(lp) then return true end
-    return false
+local function nameMatches(name)
+    return tostring(name):lower():find("gold") ~= nil
 end
 
-local running = false
+local function ancestorMatches(inst)
+    local cur = inst
+    local depth = 0
+    while cur and depth < 4 do
+        if nameMatches(cur.Name) then return true, cur.Name end
+        cur = cur.Parent
+        depth = depth + 1
+    end
+    return false, nil
+end
 
 local function collectGoldyIds()
     local lines = {}
-    local seenLines = {}
-    local visited = {}
+    local seen = {}
 
     local function add(label, value)
         if value == nil or tostring(value) == "" then return end
         local key = label .. "|" .. tostring(value)
-        if seenLines[key] then return end
-        seenLines[key] = true
+        if seen[key] then return end
+        seen[key] = true
         table.insert(lines, label .. " = " .. tostring(value))
     end
 
-    local function dumpItem(name, data, source)
-        table.insert(lines, "")
-        table.insert(lines, "--- " .. tostring(name) .. " (in " .. source .. ") ---")
-        local count = 0
-        for k, v in pairs(data) do
-            if type(v) ~= "table" then
-                add(tostring(k), v)
-                count = count + 1
-                if count > 30 then break end
-            end
-        end
-    end
+    -- only walk three safe containers
+    local roots = {ReplicatedStorage, Workspace, PlayerGui}
 
-    local function scanTable(tbl, source, depth)
-        if depth > 3 then return end
-        if visited[tbl] then return end
-        visited[tbl] = true
-
-        for k, v in pairs(tbl) do
-            if type(v) == "table" then
-                local hit = false
-                if tostring(k):lower():find("gold") then hit = true end
-                local nm = rawget(v, "Name") or rawget(v, "ItemName")
-                if nm and tostring(nm):lower():find("gold") then hit = true end
-                if hit then
-                    dumpItem(k, v, source)
-                end
-                scanTable(v, source, depth + 1)
-            end
-        end
-    end
-
-    -- collect candidate modules from ReplicatedStorage only
-    local modules = {}
-    for _, m in ipairs(ReplicatedStorage:GetDescendants()) do
-        if m:IsA("ModuleScript") and not shouldSkipModule(m) then
-            table.insert(modules, m)
-        end
-    end
-
-    status.Text = "scanning " .. #modules .. " modules..."
-
+    local total = 0
+    local matches = 0
     local startTime = tick()
-    local maxTime = 8 -- hard cap so we never freeze
 
-    for i, m in ipairs(modules) do
-        if tick() - startTime > maxTime then
-            table.insert(lines, "(time limit hit at module " .. i .. " of " .. #modules .. ")")
-            break
-        end
+    for _, root in ipairs(roots) do
+        local descendants = root:GetDescendants()
+        for i, v in ipairs(descendants) do
+            total = total + 1
 
-        -- yield every 5 modules so Roblox stays responsive
-        if i % 5 == 0 then
-            status.Text = "scanning " .. i .. "/" .. #modules .. "..."
-            task.wait()
-        end
+            -- yield often, status update
+            if total % 200 == 0 then
+                status.Text = "scanning... " .. total .. " checked, " .. matches .. " matches"
+                task.wait()
+            end
 
-        local ok, data = pcall(require, m)
-        if ok and type(data) == "table" then
-            local ok2 = pcall(scanTable, data, m.Name, 0)
-            if not ok2 then
-                -- table had something weird, just skip
+            -- hard time cap
+            if tick() - startTime > 6 then
+                table.insert(lines, "(time cap reached)")
+                break
+            end
+
+            local hit, hitName = false, nil
+            if nameMatches(v.Name) then
+                hit, hitName = true, v.Name
+            else
+                local a, an = ancestorMatches(v.Parent)
+                if a then hit, hitName = true, an end
+            end
+
+            if hit then
+                if v:IsA("ImageLabel") or v:IsA("ImageButton") then
+                    matches = matches + 1
+                    table.insert(lines, "")
+                    table.insert(lines, "[ImageLabel] " .. v:GetFullName() .. " (near: " .. hitName .. ")")
+                    add("Image", v.Image)
+                elseif v:IsA("Decal") then
+                    matches = matches + 1
+                    table.insert(lines, "")
+                    table.insert(lines, "[Decal] " .. v:GetFullName())
+                    add("Texture", v.Texture)
+                elseif v:IsA("SpecialMesh") then
+                    matches = matches + 1
+                    table.insert(lines, "")
+                    table.insert(lines, "[SpecialMesh] " .. v:GetFullName())
+                    add("MeshId", v.MeshId)
+                    add("TextureId", v.TextureId)
+                elseif v:IsA("MeshPart") then
+                    matches = matches + 1
+                    table.insert(lines, "")
+                    table.insert(lines, "[MeshPart] " .. v:GetFullName())
+                    add("MeshId", v.MeshId)
+                    add("TextureID", v.TextureID)
+                elseif v:IsA("Tool") then
+                    matches = matches + 1
+                    table.insert(lines, "")
+                    table.insert(lines, "[Tool] " .. v:GetFullName())
+                    add("TextureId", v.TextureId)
+                elseif v:IsA("StringValue") or v:IsA("NumberValue") or v:IsA("IntValue") then
+                    matches = matches + 1
+                    table.insert(lines, "")
+                    table.insert(lines, "[" .. v.ClassName .. "] " .. v:GetFullName())
+                    add("Value", v.Value)
+                end
             end
         end
     end
 
-    -- also check live ImageLabels in PlayerGui (the inventory might have Goldy displayed)
-    for _, v in ipairs(PlayerGui:GetDescendants()) do
-        if (v:IsA("ImageLabel") or v:IsA("ImageButton")) then
-            local parentName = v.Parent and tostring(v.Parent.Name):lower() or ""
-            local grandparentName = v.Parent and v.Parent.Parent and tostring(v.Parent.Parent.Name):lower() or ""
-            if parentName:find("gold") or grandparentName:find("gold") or v.Name:lower():find("gold") then
-                table.insert(lines, "")
-                table.insert(lines, "--- INSTANCE " .. v:GetFullName() .. " ---")
-                add("Image", v.Image)
-            end
-        end
-    end
-
+    table.insert(lines, 1, "scanned " .. total .. " instances, found " .. matches .. " match(es)")
     return lines
 end
 
@@ -225,13 +212,13 @@ copyBtn.MouseButton1Click:Connect(function()
         running = false
 
         if not ok then
-            status.Text = "scan errored: " .. tostring(lines)
+            status.Text = "error: " .. tostring(lines):sub(1, 60)
             status.TextColor3 = Color3.fromRGB(255, 100, 100)
             return
         end
 
-        if #lines == 0 then
-            status.Text = "no goldy data found in ReplicatedStorage"
+        if not lines or #lines <= 1 then
+            status.Text = "no goldy instances found. try in a round."
             status.TextColor3 = Color3.fromRGB(255, 100, 100)
             return
         end
@@ -254,7 +241,7 @@ copyBtn.MouseButton1Click:Connect(function()
             return
         end
 
-        status.Text = "found " .. (#lines) .. " lines but no clipboard. printed to console."
+        status.Text = "found " .. (#lines) .. " lines, no clipboard. printed to console."
         status.TextColor3 = Color3.fromRGB(255, 200, 40)
         print(text)
     end)
