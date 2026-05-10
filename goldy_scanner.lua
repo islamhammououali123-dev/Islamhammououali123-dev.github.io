@@ -98,7 +98,8 @@ status.Parent = frame
 local running = false
 
 local function nameMatches(name)
-    return tostring(name):lower():find("gold") ~= nil
+    local n = tostring(name):lower()
+    return n:find("goldy") ~= nil or n == "gold" and false  -- strict: only "goldy"
 end
 
 local function ancestorMatches(inst)
