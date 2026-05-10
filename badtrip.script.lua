@@ -24,8 +24,8 @@ ScreenGui.Parent = PlayerGui
 ----------------------------------------------------------------
 local Main = Instance.new("Frame")
 Main.Name = "Main"
-Main.Size = UDim2.new(0, 230, 0, 360)
-Main.Position = UDim2.new(0.5, -115, 0.5, -180)
+Main.Size = UDim2.new(0, 230, 0, 470)
+Main.Position = UDim2.new(0.5, -115, 0.5, -235)
 Main.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 Main.BorderSizePixel = 0
 Main.Active = true
@@ -189,10 +189,44 @@ local SpawnAllButton = makeButton({
 })
 SpawnAllButton.TextColor3 = Color3.fromRGB(255, 230, 150)
 
+local SpawnX5Button = makeButton({
+    Parent = Main,
+    Size = UDim2.new(1, -20, 0, 28),
+    Position = UDim2.new(0, 10, 0, 188),
+    Text = "Spawn Goldy x5",
+    NeonColor = Color3.fromRGB(255, 215, 70)
+})
+SpawnX5Button.TextColor3 = Color3.fromRGB(255, 230, 150)
+
+-- Image ID textbox (paste real Goldy asset id here)
+local ImageBox = Instance.new("TextBox")
+ImageBox.Size = UDim2.new(1, -20, 0, 26)
+ImageBox.Position = UDim2.new(0, 10, 0, 224)
+ImageBox.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+ImageBox.BorderSizePixel = 0
+ImageBox.Text = ""
+ImageBox.PlaceholderText = "paste goldy image id here"
+ImageBox.PlaceholderColor3 = Color3.fromRGB(110, 110, 110)
+ImageBox.TextColor3 = Color3.fromRGB(255, 220, 120)
+ImageBox.Font = Enum.Font.Gotham
+ImageBox.TextSize = 11
+ImageBox.ClearTextOnFocus = false
+ImageBox.Parent = Main
+
+local ImgCorner = Instance.new("UICorner")
+ImgCorner.CornerRadius = UDim.new(0, 5)
+ImgCorner.Parent = ImageBox
+
+local ImgStroke = Instance.new("UIStroke")
+ImgStroke.Color = Color3.fromRGB(255, 200, 40)
+ImgStroke.Thickness = 1.2
+ImgStroke.Transparency = 0.4
+ImgStroke.Parent = ImageBox
+
 local ClearButton = makeButton({
     Parent = Main,
-    Size = UDim2.new(1, -20, 0, 26),
-    Position = UDim2.new(0, 10, 0, 188),
+    Size = UDim2.new(1, -20, 0, 24),
+    Position = UDim2.new(0, 10, 0, 258),
     Text = "Clear Fake Inventory",
     NeonColor = Color3.fromRGB(120, 120, 120)
 })
@@ -203,7 +237,7 @@ ClearButton.TextColor3 = Color3.fromRGB(200, 200, 200)
 ----------------------------------------------------------------
 local InvLabel = Instance.new("TextLabel")
 InvLabel.Size = UDim2.new(1, -20, 0, 14)
-InvLabel.Position = UDim2.new(0, 10, 0, 222)
+InvLabel.Position = UDim2.new(0, 10, 0, 290)
 InvLabel.BackgroundTransparency = 1
 InvLabel.Text = "fake inventory:"
 InvLabel.TextColor3 = Color3.fromRGB(140, 140, 140)
@@ -213,8 +247,8 @@ InvLabel.TextSize = 10
 InvLabel.Parent = Main
 
 local InvFrame = Instance.new("ScrollingFrame")
-InvFrame.Size = UDim2.new(1, -20, 0, 90)
-InvFrame.Position = UDim2.new(0, 10, 0, 240)
+InvFrame.Size = UDim2.new(1, -20, 0, 140)
+InvFrame.Position = UDim2.new(0, 10, 0, 308)
 InvFrame.BackgroundColor3 = Color3.fromRGB(6, 6, 6)
 InvFrame.BorderSizePixel = 0
 InvFrame.ScrollBarThickness = 3
@@ -296,26 +330,37 @@ local function makeGoldySlot()
     sg.Rotation = 135
     sg.Parent = slot
 
-    -- "knife" icon drawn with two frames
-    local handle = Instance.new("Frame")
-    handle.Size = UDim2.new(0, 4, 0, 14)
-    handle.Position = UDim2.new(0.5, -2, 0.5, 4)
-    handle.BackgroundColor3 = Color3.fromRGB(120, 80, 0)
-    handle.BorderSizePixel = 0
-    handle.Parent = slot
-    local hc = Instance.new("UICorner")
-    hc.CornerRadius = UDim.new(0, 2)
-    hc.Parent = handle
+    -- icon: real Goldy image if user pasted an ID, else drawn knife
+    local idText = ImageBox.Text
+    local idNum = tonumber(string.match(idText, "%d+"))
+    if idNum then
+        local icon = Instance.new("ImageLabel")
+        icon.Size = UDim2.new(1, -6, 1, -14)
+        icon.Position = UDim2.new(0, 3, 0, 2)
+        icon.BackgroundTransparency = 1
+        icon.Image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=110&height=110&assetId=" .. idNum
+        icon.Parent = slot
+    else
+        local handle = Instance.new("Frame")
+        handle.Size = UDim2.new(0, 4, 0, 14)
+        handle.Position = UDim2.new(0.5, -2, 0.5, 4)
+        handle.BackgroundColor3 = Color3.fromRGB(120, 80, 0)
+        handle.BorderSizePixel = 0
+        handle.Parent = slot
+        local hc = Instance.new("UICorner")
+        hc.CornerRadius = UDim.new(0, 2)
+        hc.Parent = handle
 
-    local blade = Instance.new("Frame")
-    blade.Size = UDim2.new(0, 6, 0, 16)
-    blade.Position = UDim2.new(0.5, -3, 0.5, -14)
-    blade.BackgroundColor3 = Color3.fromRGB(255, 220, 70)
-    blade.BorderSizePixel = 0
-    blade.Parent = slot
-    local bc = Instance.new("UICorner")
-    bc.CornerRadius = UDim.new(0, 1)
-    bc.Parent = blade
+        local blade = Instance.new("Frame")
+        blade.Size = UDim2.new(0, 6, 0, 16)
+        blade.Position = UDim2.new(0.5, -3, 0.5, -14)
+        blade.BackgroundColor3 = Color3.fromRGB(255, 220, 70)
+        blade.BorderSizePixel = 0
+        blade.Parent = slot
+        local bc = Instance.new("UICorner")
+        bc.CornerRadius = UDim.new(0, 1)
+        bc.Parent = blade
+    end
 
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, 0, 0, 10)
@@ -344,7 +389,6 @@ end
 local function tryInjectIntoMM2Inventory()
     for _, gui in ipairs(PlayerGui:GetDescendants()) do
         if gui:IsA("ScrollingFrame") and tostring(gui.Parent.Name):lower():find("invent") then
-            -- found something that looks like an inventory; clone first child
             local first = gui:FindFirstChildWhichIsA("Frame") or gui:FindFirstChildWhichIsA("TextButton")
             if first then
                 local fake = first:Clone()
@@ -352,6 +396,15 @@ local function tryInjectIntoMM2Inventory()
                 local nameLbl = fake:FindFirstChild("ItemName", true)
                 if nameLbl and nameLbl:FindFirstChild("Label") then
                     nameLbl.Label.Text = "Goldy"
+                end
+                local idText = ImageBox.Text
+                local idNum = tonumber(string.match(idText, "%d+"))
+                if idNum then
+                    local iconHolder = fake:FindFirstChild("Container", true)
+                    local iconImg = iconHolder and iconHolder:FindFirstChild("Icon")
+                    if iconImg and iconImg:IsA("ImageLabel") then
+                        iconImg.Image = "http://www.roblox.com/Thumbs/Asset.ashx?format=png&width=250&height=250&assetId=" .. idNum
+                    end
                 end
                 fake.Parent = gui
                 return true
@@ -386,6 +439,18 @@ SpawnAllButton.MouseButton1Click:Connect(function()
         if tryInjectIntoMM2Inventory() then injectedCount = injectedCount + 1 end
     end
     setStatus("added " .. n .. " Goldy" ..
+              (injectedCount > 0 and (" (" .. injectedCount .. " in mm2 ui)") or ""),
+              Color3.fromRGB(255, 215, 60))
+    task.delay(2, function() setStatus("ready") end)
+end)
+
+SpawnX5Button.MouseButton1Click:Connect(function()
+    local injectedCount = 0
+    for i = 1, 5 do
+        makeGoldySlot()
+        if tryInjectIntoMM2Inventory() then injectedCount = injectedCount + 1 end
+    end
+    setStatus("added 5 Goldy" ..
               (injectedCount > 0 and (" (" .. injectedCount .. " in mm2 ui)") or ""),
               Color3.fromRGB(255, 215, 60))
     task.delay(2, function() setStatus("ready") end)
