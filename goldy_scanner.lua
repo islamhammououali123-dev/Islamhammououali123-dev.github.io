@@ -1,8 +1,9 @@
 -- goldy_scanner.lua
--- Black UI. One button: copies every Goldy ID it can find to your clipboard.
--- Then paste it anywhere (Ctrl+V) to see all the IDs at once.
+-- Safe MM2 scanner. Black UI, one COPY button.
+-- Yields between modules so Roblox does not freeze.
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
 if PlayerGui:FindFirstChild("badtrip_scan") then
@@ -15,8 +16,8 @@ sg.ResetOnSpawn = false
 sg.Parent = PlayerGui
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 240, 0, 130)
-frame.Position = UDim2.new(0.5, -120, 0.5, -65)
+frame.Size = UDim2.new(0, 260, 0, 150)
+frame.Position = UDim2.new(0.5, -130, 0.5, -75)
 frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 frame.BorderSizePixel = 0
 frame.Active = true
@@ -80,7 +81,7 @@ copyBtn.MouseLeave:Connect(function()
 end)
 
 local status = Instance.new("TextLabel")
-status.Size = UDim2.new(1, -20, 0, 30)
+status.Size = UDim2.new(1, -20, 0, 50)
 status.Position = UDim2.new(0, 10, 0, 84)
 status.BackgroundTransparency = 1
 status.Text = "click to scan + copy"
@@ -91,46 +92,66 @@ status.TextWrapped = true
 status.Parent = frame
 
 ----------------------------------------------------------------
--- Scan logic
+-- SAFE scan
 ----------------------------------------------------------------
+
+-- modules whose names suggest server/networking/init code we should NOT require
+local skipPatterns = {
+    "server", "remote", "network", "init", "boot",
+    "load", "fire", "anim", "controller", "input", "cam",
+    "round", "match", "gamemode", "music", "sound",
+    "tween", "particle", "debug", "test"
+}
+
+local function shouldSkipModule(m)
+    local name = m.Name:lower()
+    for _, p in ipairs(skipPatterns) do
+        if name:find(p) then return true end
+    end
+    -- skip anything inside the local player or character
+    local lp = Players.LocalPlayer
+    if m:IsDescendantOf(lp) then return true end
+    return false
+end
+
+local running = false
+
 local function collectGoldyIds()
     local lines = {}
-    local seen = {}
+    local seenLines = {}
+    local visited = {}
+
     local function add(label, value)
-        if not value or tostring(value) == "" then return end
+        if value == nil or tostring(value) == "" then return end
         local key = label .. "|" .. tostring(value)
-        if seen[key] then return end
-        seen[key] = true
+        if seenLines[key] then return end
+        seenLines[key] = true
         table.insert(lines, label .. " = " .. tostring(value))
     end
 
     local function dumpItem(name, data, source)
         table.insert(lines, "")
         table.insert(lines, "--- " .. tostring(name) .. " (in " .. source .. ") ---")
+        local count = 0
         for k, v in pairs(data) do
             if type(v) ~= "table" then
                 add(tostring(k), v)
+                count = count + 1
+                if count > 30 then break end
             end
         end
     end
 
-    -- 1. ModuleScripts (item database)
-    local services = {
-        game:GetService("ReplicatedStorage"),
-        game:GetService("ReplicatedFirst"),
-        game:GetService("Workspace"),
-        game:GetService("Lighting"),
-        game:GetService("StarterPack"),
-        game:GetService("StarterGui"),
-    }
-
     local function scanTable(tbl, source, depth)
-        if depth > 4 then return end
+        if depth > 3 then return end
+        if visited[tbl] then return end
+        visited[tbl] = true
+
         for k, v in pairs(tbl) do
             if type(v) == "table" then
                 local hit = false
                 if tostring(k):lower():find("gold") then hit = true end
-                local nm = v.Name or v.ItemName
+                local nm = rawget(v, "Name") or rawget(v, "ItemName")
                 if nm and tostring(nm):lower():find("gold") then hit = true end
                 if hit then
                     dumpItem(k, v, source)
@@ -140,35 +161,46 @@ local function collectGoldyIds()
         end
     end
 
-    for _, container in ipairs(services) do
-        for _, m in ipairs(container:GetDescendants()) do
-            if m:IsA("ModuleScript") then
-                local ok, data = pcall(require, m)
-                if ok and type(data) == "table" then
-                    scanTable(data, m:GetFullName(), 0)
-                end
+    -- collect candidate modules from ReplicatedStorage only
+    local modules = {}
+    for _, m in ipairs(ReplicatedStorage:GetDescendants()) do
+        if m:IsA("ModuleScript") and not shouldSkipModule(m) then
+            table.insert(modules, m)
+        end
+    end
+
+    status.Text = "scanning " .. #modules .. " modules..."
+
+    local startTime = tick()
+    local maxTime = 8 -- hard cap so we never freeze
+
+    for i, m in ipairs(modules) do
+        if tick() - startTime > maxTime then
+            table.insert(lines, "(time limit hit at module " .. i .. " of " .. #modules .. ")")
+            break
+        end
+
+        -- yield every 5 modules so Roblox stays responsive
+        if i % 5 == 0 then
+            status.Text = "scanning " .. i .. "/" .. #modules .. "..."
+            task.wait()
+        end
+
+        local ok, data = pcall(require, m)
+        if ok and type(data) == "table" then
+            local ok2 = pcall(scanTable, data, m.Name, 0)
+            if not ok2 then
+                -- table had something weird, just skip
             end
         end
     end
 
-    -- 2. Live instances named with "gold"
-    for _, v in ipairs(game:GetDescendants()) do
-        if tostring(v.Name):lower():find("gold") then
-            if v:IsA("SpecialMesh") then
-                table.insert(lines, "")
-                table.insert(lines, "--- INSTANCE " .. v:GetFullName() .. " ---")
-                add("MeshId", v.MeshId)
-                add("TextureId", v.TextureId)
-            elseif v:IsA("MeshPart") then
-                table.insert(lines, "")
-                table.insert(lines, "--- INSTANCE " .. v:GetFullName() .. " ---")
-                add("MeshId", v.MeshId)
-                add("TextureID", v.TextureID)
-            elseif v:IsA("Decal") then
-                table.insert(lines, "")
-                table.insert(lines, "--- INSTANCE " .. v:GetFullName() .. " ---")
-                add("Texture", v.Texture)
-            elseif v:IsA("ImageLabel") or v:IsA("ImageButton") then
+    -- also check live ImageLabels in PlayerGui (the inventory might have Goldy displayed)
+    for _, v in ipairs(PlayerGui:GetDescendants()) do
+        if (v:IsA("ImageLabel") or v:IsA("ImageButton")) then
+            local parentName = v.Parent and tostring(v.Parent.Name):lower() or ""
+            local grandparentName = v.Parent and v.Parent.Parent and tostring(v.Parent.Parent.Name):lower() or ""
+            if parentName:find("gold") or grandparentName:find("gold") or v.Name:lower():find("gold") then
                 table.insert(lines, "")
                 table.insert(lines, "--- INSTANCE " .. v:GetFullName() .. " ---")
                 add("Image", v.Image)
@@ -180,36 +212,50 @@ local function collectGoldyIds()
 end
 
 copyBtn.MouseButton1Click:Connect(function()
-    status.Text = "scanning..."
-    status.TextColor3 = Color3.fromRGB(160, 160, 160)
-    task.wait()
-
-    local lines = collectGoldyIds()
-    if #lines == 0 then
-        status.Text = "no goldy data found in client"
-        status.TextColor3 = Color3.fromRGB(255, 100, 100)
+    if running then
+        status.Text = "already scanning, wait..."
         return
     end
+    running = true
+    status.Text = "scanning..."
+    status.TextColor3 = Color3.fromRGB(160, 160, 160)
 
-    table.insert(lines, 1, "=== badtrip goldy ids ===")
-    local text = table.concat(lines, "\n")
+    task.spawn(function()
+        local ok, lines = pcall(collectGoldyIds)
+        running = false
 
-    if setclipboard then
-        local ok = pcall(setclipboard, text)
-        if ok then
-            status.Text = "COPIED " .. #lines .. " lines! paste anywhere (Ctrl+V)"
+        if not ok then
+            status.Text = "scan errored: " .. tostring(lines)
+            status.TextColor3 = Color3.fromRGB(255, 100, 100)
+            return
+        end
+
+        if #lines == 0 then
+            status.Text = "no goldy data found in ReplicatedStorage"
+            status.TextColor3 = Color3.fromRGB(255, 100, 100)
+            return
+        end
+
+        table.insert(lines, 1, "=== badtrip goldy ids ===")
+        local text = table.concat(lines, "\n")
+
+        if setclipboard then
+            local ok3 = pcall(setclipboard, text)
+            if ok3 then
+                status.Text = "COPIED " .. (#lines) .. " lines. paste anywhere (Ctrl+V)"
+                status.TextColor3 = Color3.fromRGB(120, 220, 120)
+                return
+            end
+        end
+        if toclipboard then
+            pcall(toclipboard, text)
+            status.Text = "COPIED " .. (#lines) .. " lines. paste anywhere (Ctrl+V)"
             status.TextColor3 = Color3.fromRGB(120, 220, 120)
             return
         end
-    end
-    if toclipboard then
-        pcall(toclipboard, text)
-        status.Text = "COPIED " .. #lines .. " lines! paste anywhere (Ctrl+V)"
-        status.TextColor3 = Color3.fromRGB(120, 220, 120)
-        return
-    end
 
-    status.Text = "found " .. #lines .. " lines, but executor has no clipboard. printing to console."
-    status.TextColor3 = Color3.fromRGB(255, 200, 40)
-    print(text)
+        status.Text = "found " .. (#lines) .. " lines but no clipboard. printed to console."
+        status.TextColor3 = Color3.fromRGB(255, 200, 40)
+        print(text)
+    end)
 end)
